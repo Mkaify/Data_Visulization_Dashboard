@@ -10,7 +10,7 @@
         .section { background: white; padding: 20px; margin-bottom: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
         h1, h3 { color: #343a40; }
         .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin-bottom: 15px; }
-        button { background: #007bff; color: white; border: none; padding: 8px 16px; cursor: pointer; border-radius: 4px; }
+        button { background: #007bff; color: white; border: none; padding: 8px 16px; cursor: pointer; border-radius: 4px; font-weight: 500; }
         button:hover { background: #0056b3; }
         button.secondary { background: #6c757d; }
         select, input { padding: 8px; border: 1px solid #ced4da; border-radius: 4px; }
@@ -19,6 +19,7 @@
         table { width: 100%; border-collapse: collapse; font-size: 0.9em; }
         th, td { border: 1px solid #dee2e6; padding: 8px; text-align: left; }
         th { background: #343a40; color: white; }
+        .missing-count { color: #dc3545; font-size: 0.8em; margin-left: 5px; }
     </style>
 </head>
 <body>
@@ -36,8 +37,24 @@
     </div>
 
     <div class="grid-container" id="dashboard" style="display:none;">
+        
+        <div class="section full-width">
+            <h3>🧹 2. Data Cleaning</h3>
+            <div class="row">
+                <label>Method:</label>
+                <select id="cleanMethod" onchange="toggleFillInput()">
+                    <option value="dropna">Drop Missing Rows</option>
+                    <option value="fillna">Fill Missing Values</option>
+                </select>
+                <label>Column:</label>
+                <select id="cleanCol"><option value="all">All Columns</option></select>
+                <input type="text" id="fillValue" placeholder="Value to fill..." style="display:none; width: 120px;">
+                <button onclick="applyCleaning()">Apply Cleaning</button>
+            </div>
+        </div>
+
         <div class="section">
-            <h3>📈 Visualization</h3>
+            <h3>📈 3. Visualization</h3>
             <div class="row">
                 <select id="chartType">
                     <option value="bar">Bar Chart</option>
@@ -60,7 +77,7 @@
         </div>
 
         <div class="section full-width">
-            <h3>🔍 Filter & Data View</h3>
+            <h3>🔍 4. Filter & Data View</h3>
             <div class="row" style="background: #e9ecef; padding: 10px; border-radius: 5px;">
                 <b>Filter:</b>
                 <select id="filterCol"><option>Column</option></select>
@@ -82,8 +99,13 @@
 
     <script>
         let myChart = null;
-        let sessionId = null; // Store the UUID session ID
+        let sessionId = null;
         const API_URL = window.location.origin;
+
+        function toggleFillInput() {
+            const method = document.getElementById('cleanMethod').value;
+            document.getElementById('fillValue').style.display = (method === 'fillna') ? 'block' : 'none';
+        }
 
         async function uploadFile() {
             const file = document.getElementById('fileInput').files[0];
@@ -91,15 +113,38 @@
             const fd = new FormData();
             fd.append("file", file);
             
-            try {
-                const res = await fetch(`${API_URL}/upload`, { method: "POST", body: fd });
-                if(res.ok) {
-                    const data = await res.json();
-                    sessionId = data.session_id; // Save the session ID from the backend
-                    updateUI(data);
-                    fetchStats();
-                }
-            } catch (err) { alert("Upload failed: " + err); }
+            const res = await fetch(`${API_URL}/upload`, { method: "POST", body: fd });
+            if(res.ok) {
+                const data = await res.json();
+                sessionId = data.session_id;
+                updateUI(data);
+                fetchStats();
+            }
+        }
+
+        async function applyCleaning() {
+            if (!sessionId) return;
+            const method = document.getElementById('cleanMethod').value;
+            const payload = {
+                session_id: sessionId,
+                method: method,
+                column: document.getElementById('cleanCol').value,
+                fill_value: method === 'fillna' ? document.getElementById('fillValue').value : null
+            };
+
+            const res = await fetch(`${API_URL}/clean`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(payload)
+            });
+
+            if (res.ok) {
+                const data = await res.json();
+                updateUI(data);
+                fetchStats();
+            } else {
+                alert("Cleaning failed.");
+            }
         }
 
         async function fetchStats() {
@@ -111,18 +156,11 @@
                     document.getElementById('statsContainer').innerHTML = "<p>No numeric columns found.</p>";
                     return;
                 }
-                
                 let html = '<table><thead><tr><th>Column</th><th>Mean</th><th>Min</th><th>Max</th></tr></thead><tbody>';
                 stats.forEach(s => {
-                    html += `<tr>
-                        <td><b>${s.Column}</b></td>
-                        <td>${parseFloat(s.Mean).toFixed(2)}</td>
-                        <td>${s.Min}</td>
-                        <td>${s.Max}</td>
-                    </tr>`;
+                    html += `<tr><td><b>${s.Column}</b></td><td>${parseFloat(s.Mean).toFixed(2)}</td><td>${s.Min}</td><td>${s.Max}</td></tr>`;
                 });
-                html += '</tbody></table>';
-                document.getElementById('statsContainer').innerHTML = html;
+                document.getElementById('statsContainer').innerHTML = html + '</tbody></table>';
             }
         }
 
@@ -135,21 +173,16 @@
                 value: document.getElementById('filterVal').value
             };
             const res = await fetch(`${API_URL}/filter`, {
-                method: "POST", 
-                headers: { "Content-Type": "application/json" }, 
-                body: JSON.stringify(payload)
+                method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload)
             });
             if(res.ok) {
                 updateUI(await res.json());
                 fetchStats();
-            } else {
-                alert("Filter failed.");
             }
         }
 
         function downloadCSV() {
-            if (!sessionId) return alert("Upload data first");
-            window.location.href = `${API_URL}/download/${sessionId}`;
+            if (sessionId) window.location.href = `${API_URL}/download/${sessionId}`;
         }
 
         async function generatePlot() {
@@ -161,9 +194,7 @@
                 chart_type: document.getElementById('chartType').value
             };
             const res = await fetch(`${API_URL}/plot`, {
-                method: "POST", 
-                headers: { "Content-Type": "application/json" }, 
-                body: JSON.stringify(payload)
+                method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload)
             });
             if(res.ok) renderChart(await res.json(), payload.chart_type);
         }
@@ -171,10 +202,8 @@
         function renderChart(data, type) {
             const ctx = document.getElementById('myChart').getContext('2d');
             if (myChart) myChart.destroy();
-            
             const colors = ['#36A2EB', '#FF6384', '#FFCE56', '#4BC0C0', '#9966FF', '#FF9F40'];
-
-            let config = {
+            myChart = new Chart(ctx, {
                 type: type,
                 data: {
                     labels: data.labels,
@@ -187,18 +216,23 @@
                     }]
                 },
                 options: { responsive: true, maintainAspectRatio: false }
-            };
-            myChart = new Chart(ctx, config);
+            });
         }
 
         function updateUI(data) {
             document.getElementById('dashboard').style.display = 'grid';
             document.getElementById('fileStats').innerText = `${data.filename} (${data.total_rows} rows)`;
             
-            const opts = data.columns.map(c => `<option value="${c}">${c}</option>`).join('');
-            document.getElementById('xAxis').innerHTML = opts;
-            document.getElementById('yAxis').innerHTML = `<option value="">Count Only</option>` + opts;
-            document.getElementById('filterCol').innerHTML = opts;
+            // Populate all column dropdowns
+            const colOptions = data.columns.map(c => {
+                const missing = data.missing_values[c] || 0;
+                return `<option value="${c}">${c}${missing > 0 ? ' ('+missing+' nulls)' : ''}</option>`;
+            }).join('');
+
+            document.getElementById('cleanCol').innerHTML = `<option value="all">All Columns</option>` + colOptions;
+            document.getElementById('xAxis').innerHTML = colOptions;
+            document.getElementById('yAxis').innerHTML = `<option value="">Count Only</option>` + colOptions;
+            document.getElementById('filterCol').innerHTML = colOptions;
 
             let table = '<table><thead><tr>' + data.columns.map(c => `<th>${c}</th>`).join('') + '</tr></thead><tbody>';
             data.preview.forEach(row => {
