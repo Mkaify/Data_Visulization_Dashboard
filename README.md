@@ -25,4 +25,4 @@ A lightweight, powerful web-based tool built with **FastAPI** and **Python** tha
 ### 1. Clone the repository
 ```bash
 git clone https://github.com/mkaify/data-visulization-dashboard.git
-cd data-viz-dashboard
+cd data-visulization-dashboard
