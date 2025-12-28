@@ -26,3 +26,28 @@ A lightweight, powerful web-based tool built with **FastAPI** and **Python** tha
 ```bash
 git clone https://github.com/mkaify/data-visulization-dashboard.git
 cd data-visulization-dashboard
+
+### 2. Set up a virtual environment
+```bash
+python -m venv venv
+source venv/bin/activate  # On Windows: venv\Scripts\activate
+```
+
+### 3. Install Dependencies
+```bash
+pip install -r requirements.txt
+```
+
+### 4. Run Application
+```bash
+uvicorn backend.main:app --reload
+```
+The API will be available at http://localhost:8000. Simply open frontend/index.html in your browser to start exploring your data
+
+### 5. 📁 Project Structure
+├── backend/
+│   └── main.py          # FastAPI application & Data logic
+├── frontend/
+│   └── index.html       # Dashboard UI & Charting logic
+├── requirements.txt     # Python dependencies
+└── .gitignore           # Files to exclude from Git
