@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Advanced Data Dashboard</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        /* Keeping previous CSS styles */
+        body { font-family: 'Segoe UI', sans-serif; padding: 20px; max-width: 1200px; margin: auto; background-color: #f8f9fa; }
+        .section { background: white; padding: 20px; margin-bottom: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        h1, h3 { color: #343a40; }
+        .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin-bottom: 15px; }
+        button { background: #007bff; color: white; border: none; padding: 8px 16px; cursor: pointer; border-radius: 4px; }
+        button:hover { background: #0056b3; }
+        button.secondary { background: #6c757d; }
+        select, input { padding: 8px; border: 1px solid #ced4da; border-radius: 4px; }
+        
+        /* Dashboard Grid */
+        .grid-container { display: grid; grid-template-columns: 2fr 1fr; gap: 20px; }
+        .full-width { grid-column: span 2; }
+
+        table { width: 100%; border-collapse: collapse; font-size: 0.9em; }
+        th, td { border: 1px solid #dee2e6; padding: 8px; text-align: left; }
+        th { background: #343a40; color: white; }
+    </style>
+</head>
+<body>
+
+    <div style="display: flex; justify-content: space-between; align-items: center;">
+        <h1>📊 Advanced Data Dashboard</h1>
+        <button class="secondary" onclick="downloadCSV()">⬇ Download Processed CSV</button>
+    </div>
+
+    <div class="section">
+        <h3>1. Upload & Settings</h3>
+        <input type="file" id="fileInput" accept=".csv">
+        <button onclick="uploadFile()">Load Dataset</button>
+        <span id="fileStats" style="margin-left: 15px; font-weight: bold; color: #555;"></span>
+    </div>
+
+    <div class="grid-container" id="dashboard" style="display:none;">
+        
+        <div class="section">
+            <h3>📈 Visualization</h3>
+            <div class="row">
+                <select id="chartType">
+                    <option value="bar">Bar Chart</option>
+		    <option value="pie">Pie Chart</option>
+                    <option value="line">Line Chart</option>
+                    <option value="scatter">Scatter Plot</option>
+                </select>
+                <select id="xAxis"><option>X-Axis</option></select>
+                <select id="yAxis"><option>Y-Axis</option></select>
+                <button onclick="generatePlot()">Plot</button>
+            </div>
+            <canvas id="myChart" style="max-height: 350px;"></canvas>
+        </div>
+
+        <div class="section">
+            <h3>∑ Statistics Summary</h3>
+            <div id="statsContainer" style="overflow-x: auto; max-height: 350px;">
+                <p>Upload data to see statistics.</p>
+            </div>
+        </div>
+
+        <div class="section full-width">
+            <h3>🔍 Filter & Data View</h3>
+            
+            <div class="row" style="background: #e9ecef; padding: 10px; border-radius: 5px;">
+                <b>Filter:</b>
+                <select id="filterCol"><option>Column</option></select>
+                <select id="filterOp">
+                    <option value="gt">Greater Than (>)</option>
+                    <option value="lt">Less Than (<)</option>
+                    <option value="eq">Equals (==)</option>
+                    <option value="contains">Contains (Text)</option>
+                </select>
+                <input type="text" id="filterVal" placeholder="Value">
+                <button onclick="applyFilter()">Apply Filter</button>
+                <button class="secondary" onclick="cleanData('reset')">Reset Data</button>
+            </div>
+
+            <div style="overflow-x: auto; max-height: 400px;">
+                <div id="tableContainer"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let myChart = null;
+	const API_URL = window.location.origin;
+        async function uploadFile() {
+            const file = document.getElementById('fileInput').files[0];
+            if (!file) return alert("Select a file");
+            const fd = new FormData();
+            fd.append("file", file);
+            
+            const res = await fetch("API_URL/upload", { method: "POST", body: fd });
+            if(res.ok) {
+                const data = await res.json();
+                updateUI(data);
+                fetchStats(); // Auto-fetch stats on upload
+            }
+        }
+
+        async function fetchStats() {
+            const res = await fetch("API_URL/stats");
+            if (res.ok) {
+                const stats = await res.json();
+                if (stats.message) return; // No numeric cols
+                
+                let html = '<table><thead><tr><th>Column</th><th>Mean</th><th>Min</th><th>Max</th></tr></thead><tbody>';
+                stats.forEach(s => {
+                    html += `<tr>
+                        <td><b>${s.Column}</b></td>
+                        <td>${parseFloat(s.Mean).toFixed(2)}</td>
+                        <td>${s.Min}</td>
+                        <td>${s.Max}</td>
+                    </tr>`;
+                });
+                html += '</tbody></table>';
+                document.getElementById('statsContainer').innerHTML = html;
+            }
+        }
+
+        async function applyFilter() {
+            const payload = {
+                column: document.getElementById('filterCol').value,
+                operation: document.getElementById('filterOp').value,
+                value: document.getElementById('filterVal').value
+            };
+            const res = await fetch("API_URL/filter", {
+                method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload)
+            });
+            if(res.ok) {
+                updateUI(await res.json());
+                fetchStats(); // Update stats based on filtered data
+            } else {
+                alert("Filter failed. Check your value.");
+            }
+        }
+
+        function downloadCSV() {
+            window.location.href = "API_URL/download";
+        }
+
+        // --- Existing Plot/UI Logic (Condensed) ---
+        async function generatePlot() {
+            const payload = {
+                x_axis: document.getElementById('xAxis').value,
+                y_axis: document.getElementById('yAxis').value || null,
+                chart_type: document.getElementById('chartType').value
+            };
+            const res = await fetch("API_URL/plot", {
+                method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload)
+            });
+            if(res.ok) renderChart(await res.json(), payload.chart_type);
+        }
+
+        function renderChart(data, type) {
+            const ctx = document.getElementById('myChart').getContext('2d');
+            if (myChart) myChart.destroy();
+            
+            // Simplified chart config
+            let config = {
+                type: type,
+                data: {
+                    labels: data.labels,
+                    datasets: [{
+                        label: data.label,
+                        data: type === 'scatter' ? data.labels.map((x,i) => ({x, y: data.values[i]})) : data.values,
+                        backgroundColor: 'rgba(54, 162, 235, 0.5)',
+                        borderColor: 'rgba(54, 162, 235, 1)',
+                        borderWidth: 1
+                    }]
+                },
+                options: { responsive: true, maintainAspectRatio: false }
+            };
+            myChart = new Chart(ctx, config);
+        }
+
+        function updateUI(data) {
+            document.getElementById('dashboard').style.display = 'grid';
+            document.getElementById('fileStats').innerText = `${data.filename} (${data.total_rows} rows)`;
+            
+            // Update dropdowns
+            const opts = data.columns.map(c => `<option value="${c}">${c}</option>`).join('');
+            document.getElementById('xAxis').innerHTML = opts;
+            document.getElementById('yAxis').innerHTML = opts;
+            document.getElementById('filterCol').innerHTML = opts;
+
+            // Render Table
+            let table = '<table><thead><tr>' + data.columns.map(c => `<th>${c}</th>`).join('') + '</tr></thead><tbody>';
+            data.preview.forEach(row => {
+                table += '<tr>' + data.columns.map(c => `<td>${row[c] ?? ''}</td>`).join('') + '</tr>';
+            });
+            document.getElementById('tableContainer').innerHTML = table + '</tbody></table>';
+        }
+    </script>
+</body>
+</html>

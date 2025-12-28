@@ -1,0 +1,16 @@
+# Environments
+venv/
+.env
+__pycache__/
+*.pyc
+
+# Data & OS
+.DS_Store
+*.csv
+*.json
+*.xlsx
+!sample_data/ # (Optional) Keep this if you want to include specific test data
+
+# IDEs
+.vscode/
+.idea/
