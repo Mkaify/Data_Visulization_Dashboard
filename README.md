@@ -24,5 +24,5 @@ A lightweight, powerful web-based tool built with **FastAPI** and **Python** tha
 
 ### 1. Clone the repository
 ```bash
-git clone [https://github.com/YOUR_USERNAME/data-viz-dashboard.git](https://github.com/YOUR_USERNAME/data-viz-dashboard.git)
+git clone [https://github.com/mkaify/data-visulization-dashboard.git](https://github.com/mkaify/data-visualization-dashboard.git)
 cd data-viz-dashboard
