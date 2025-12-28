@@ -26,6 +26,7 @@ A lightweight, powerful web-based tool built with **FastAPI** and **Python** tha
 ```bash
 git clone https://github.com/mkaify/data-visulization-dashboard.git
 cd data-visulization-dashboard
+```
 
 ### 2. Set up a virtual environment
 ```bash
